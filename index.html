@@ -109,6 +109,7 @@ h1{font-size:18px;font-weight:700;margin-top:2px}
 .empty{border:1px dashed var(--line);border-radius:10px;padding:44px 20px;text-align:center;color:var(--muted);font-size:13px;margin-top:16px}
 .note{font-size:10px;color:var(--muted);margin-top:14px;line-height:1.7}
 .status{font-size:11px;color:var(--accent);padding:8px 0;min-height:28px}
+#todayList>div:last-child{border-bottom:none!important}
 
 .toolbar{
   position:fixed;bottom:0;left:0;right:0;display:flex;gap:10px;
@@ -214,6 +215,13 @@ input:focus,select:focus{border-color:var(--accent)}
 <div class="alloc-legend" id="allocLegend"></div>
 
 <div id="alerts"></div>
+
+<!-- 今日行情 -->
+<div id="todaySection" style="display:none">
+  <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent);margin:4px 0 8px">📡 今日行情</div>
+  <div id="todayList" style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin-bottom:16px"></div>
+</div>
+
 <div class="status" id="status"></div>
 <div id="list"></div>
 <div class="note" id="footNote" style="display:none">
@@ -233,6 +241,7 @@ input:focus,select:focus{border-color:var(--accent)}
       <select id="fMarket">
         <option value="US">美股</option>
         <option value="TW">台股</option>
+        <option value="TH">泰股</option>
         <option value="FUND">基金（定期定額）</option>
         <option value="INCOME">收益型（固定回饋）</option>
         <option value="OTHER">其他</option>
@@ -243,7 +252,7 @@ input:focus,select:focus{border-color:var(--accent)}
   <div class="frow">
     <label>名稱（選填）<input id="fName"></label>
     <label>幣別
-      <select id="fCurrency"><option value="USD">USD</option><option value="TWD">TWD</option></select>
+      <select id="fCurrency"><option value="USD">USD</option><option value="TWD">TWD</option><option value="THB">THB</option></select>
     </label>
   </div>
   <div class="frow">
@@ -262,15 +271,15 @@ input:focus,select:focus{border-color:var(--accent)}
 
 <div class="toast" id="toast"></div>
 
+<script src="config.js"></script>
 <script>
-// ============ 設定：部署後填入你的 Apps Script 網址與 TOKEN ============
-const CONFIG = {
-  API_URL: "https://script.google.com/macros/s/AKfycbw1V369px40mytShin3PjfxAlXNUj1UN7vHPEsKsUtWfYgefpW__fifgJ0WG1MJIXZf/exec",
-  TOKEN: "nid2026" // 需與 Code.gs 裡的 TOKEN 一致，建議改成自己的
-};
-// =====================================================================
+// CONFIG 由 config.js 提供（網址與 TOKEN 填在那個檔案，只需設定一次）
+if (typeof CONFIG === "undefined") {
+  document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;color:#8A919C;font-family:sans-serif">找不到 config.js。<br>請將 config.js 上傳到與 index.html 相同的位置。</div>';
+  throw new Error("missing config.js");
+}
 
-const MARKETS = { US: "美股", TW: "台股", FUND: "基金", INCOME: "收益型", OTHER: "其他" };
+const MARKETS = { US: "美股", TW: "台股", TH: "泰股", FUND: "基金", INCOME: "收益型", OTHER: "其他" };
 const MARATHON_KM = 42.195;
 
 // 等級表：依累積投入（TWD）
@@ -381,14 +390,17 @@ function calc() {
   return state.holdings.map(h => {
     const payout = Number(payouts[String(h.id)] || 0);
     const isIncome = h.market === "INCOME";
+    const isFund = h.market === "FUND";
     const hasPrice = !isIncome && typeof h.price === "number";
+    // FUND：cost = 累計投入總額、price = 目前總市值（皆為總額，shares 固定 1）
     const costBasis = h.shares * h.cost;
     const mv = isIncome ? costBasis : (hasPrice ? h.shares * h.price : costBasis);
     const unreal = hasPrice ? mv - costBasis : 0;
-    const pnl = unreal + payout;
-    const pct = costBasis > 0 ? pnl / costBasis * 100 : 0;
-    const rate = h.currency === "USD" ? state.fx : 1;
-    return { ...h, isIncome, hasPrice, payout, costBasis, mv, pnl, pct,
+    const pnl = isIncome ? 0 : unreal + payout; // 收益型不算損益，只看本金
+    const pct = !isIncome && costBasis > 0 ? pnl / costBasis * 100 : 0;
+    const rate = h.currency === "USD" ? state.fx : (h.currency === "THB" ? (state.fxThb || 0.95) : 1);
+    const changePct = typeof h.changePct === "number" ? h.changePct : null;
+    return { ...h, isIncome, isFund, hasPrice, payout, costBasis, mv, pnl, pct, changePct,
       mvTWD: mv * rate, costTWD: costBasis * rate, payoutTWD: payout * rate };
   }).sort((a, b) => b.mvTWD - a.mvTWD);
 }
@@ -506,6 +518,30 @@ function render() {
     `<span class="num"><b>${esc(r.symbol)}</b> 成本 ${fmt(r.cost)} → ${fmt(r.price)}（${fmt(r.pct)}%）</span>`).join("")}</div></div>`;
   $("alerts").innerHTML = a;
 
+  // 今日行情：有即時報價的標的（股票／ETF）
+  const live = rows.filter(r => r.hasPrice && !r.isFund);
+  if (live.length) {
+    $("todaySection").style.display = "block";
+    $("todayList").innerHTML = live.map(r => {
+      const ch = r.changePct;
+      const chColor = ch === null ? "var(--muted)" : ch > 0 ? "var(--up)" : ch < 0 ? "var(--down)" : "var(--muted)";
+      const chText = ch === null ? "—" : `${sign(ch)}${fmt(ch)}%`;
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <span class="num" style="font-weight:700;font-size:13px">${esc(r.symbol)}</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:6px">${MARKETS[r.market] || r.market}</span>
+        </div>
+        <div style="text-align:right">
+          <span class="num" style="font-size:13px">${fmt(r.price)}</span>
+          <span class="num" style="font-size:12px;font-weight:700;color:${chColor};margin-left:10px;display:inline-block;min-width:64px">${chText}</span>
+        </div>
+      </div>`;
+    }).join("");
+  } else {
+    $("todaySection").style.display = "none";
+  }
+
   const list = $("list");
   if (!rows.length) {
     list.innerHTML = `<div class="empty">還沒站上起跑線。點「新增持倉」加入第一筆，鳴槍開跑 🎽</div>`;
@@ -532,41 +568,41 @@ function renderCard(r) {
         </div>
       </div>`;
 
-  // 收益型：本金＋回饋追蹤＋回本進度
+  // 收益型：只顯示投入本金
   if (r.isIncome) {
-    const recovered = r.costBasis > 0 ? r.payout / r.costBasis * 100 : 0;
     return `
     <div class="card">
-      ${head}
-      <div class="card-grid">
-        <div><div class="k">投入本金</div><div class="v num">${fmt(r.costBasis, 0)}</div></div>
-        <div><div class="k">累計回饋</div><div class="v num" style="color:var(--accent)">${fmt(r.payout, 0)}</div></div>
-        <div><div class="k">回本進度</div><div class="v num" style="color:${recovered >= 100 ? "var(--up)" : "var(--accent)"}">${recovered.toFixed(1)}%</div></div>
-        <div><div class="k">狀態</div><div class="v">${recovered >= 100 ? "已回本 ✓" : "風險中"}</div></div>
+      <div class="card-top">
+        <div>
+          <div class="sym num">${esc(r.symbol)}</div>
+          <div class="tag">${MARKETS[r.market]}${r.name ? "・" + esc(r.name) : ""}・${esc(r.currency)}</div>
+        </div>
+        <div class="card-pnl">
+          <div class="p num">${fmt(r.costBasis, 0)}</div>
+          <div class="pc" style="color:var(--muted)">投入本金</div>
+        </div>
       </div>
       <div class="card-actions">
-        <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋記回饋</button>
         <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
         <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
       </div>
     </div>`;
   }
 
-  // 基金：手動淨值＋定期定額
-  if (r.market === "FUND") {
+  // 基金：累計投入 vs 目前市值（都是總額，最簡單）
+  if (r.isFund) {
     return `
-    <div class="card ${r.hasPrice && r.price < r.cost ? "breach" : ""}">
+    <div class="card ${r.hasPrice && r.pnl < 0 ? "breach" : ""}">
       ${head}
-      <div class="card-grid">
-        <div><div class="k">單位數</div><div class="v num">${fmt(r.shares, 2)}</div></div>
-        <div><div class="k">平均淨值</div><div class="v num">${fmt(r.cost)}</div></div>
-        <div><div class="k">最新淨值</div><div class="v num" style="${r.hasPrice ? "" : "color:var(--muted)"}">${r.hasPrice ? fmt(r.price) : "未設定"}</div></div>
-        <div><div class="k">市值</div><div class="v num">${fmt(r.mv, 0)}</div></div>
+      <div class="card-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div><div class="k">累計投入</div><div class="v num">${fmt(r.costBasis, 0)}</div></div>
+        <div><div class="k">目前市值</div><div class="v num" style="${r.hasPrice ? "" : "color:var(--muted)"}">${r.hasPrice ? fmt(r.mv, 0) : "未設定"}</div></div>
+        <div><div class="k">損益</div><div class="v num" style="color:${pnlColorCss(r.pnl)}">${r.hasPrice ? sign(r.pnl) + fmt(r.pnl, 0) : "—"}</div></div>
       </div>
       ${r.payout > 0 ? `<div class="tag" style="margin-top:8px">累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></div>` : ""}
       <div class="card-actions">
-        <button class="mini" onclick="contribute('${r.id}','${esc(r.symbol)}')">＋定期定額</button>
-        <button class="mini" onclick="updateNav('${r.id}','${esc(r.symbol)}')">更新淨值</button>
+        <button class="mini" onclick="contribute('${r.id}','${esc(r.symbol)}')">＋本月投入</button>
+        <button class="mini" onclick="updateNav('${r.id}','${esc(r.symbol)}')">更新市值</button>
         <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋配息</button>
         <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
         <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
@@ -575,6 +611,9 @@ function renderCard(r) {
   }
 
   // 一般股票／ETF
+  const chip = r.changePct !== null && r.changePct !== undefined
+    ? `<span class="num" style="font-size:11px;font-weight:700;color:${r.changePct > 0 ? "var(--up)" : r.changePct < 0 ? "var(--down)" : "var(--muted)"}">今日 ${sign(r.changePct)}${fmt(r.changePct)}%</span>`
+    : "";
   return `
     <div class="card ${r.hasPrice && r.price < r.cost ? "breach" : ""}">
       ${head}
@@ -584,7 +623,7 @@ function renderCard(r) {
         <div><div class="k">現價</div><div class="v num" style="${r.hasPrice ? "" : "color:var(--muted)"}">${r.hasPrice ? fmt(r.price) : "—"}</div></div>
         <div><div class="k">市值</div><div class="v num">${fmt(r.mv, 0)}</div></div>
       </div>
-      ${r.payout > 0 ? `<div class="tag" style="margin-top:8px">累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></div>` : ""}
+      ${chip || r.payout > 0 ? `<div class="tag" style="margin-top:8px;display:flex;gap:14px">${chip}${r.payout > 0 ? `<span>累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></span>` : ""}</div>` : ""}
       <div class="card-actions">
         <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋配息</button>
         <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
@@ -592,6 +631,8 @@ function renderCard(r) {
       </div>
     </div>`;
 }
+
+function pnlColorCss(v) { return v > 0 ? "var(--up)" : v < 0 ? "var(--down)" : "var(--muted)"; }
 
 // ---------- 表單 ----------
 function openSheet(title) { $("sheetTitle").textContent = title; $("sheet").classList.add("open"); $("sheetBg").classList.add("open"); }
@@ -619,22 +660,24 @@ $("fMarket").onchange = (e) => {
   const m = e.target.value;
   if (m === "US") $("fCurrency").value = "USD";
   if (m === "TW" || m === "FUND" || m === "INCOME") $("fCurrency").value = "TWD";
+  if (m === "TH") $("fCurrency").value = "THB";
+  const sharesRow = $("fShares").parentElement;
   if (m === "INCOME") {
     $("lblSymbol").textContent = "名稱代號 *（自訂）";
     $("fSymbol").placeholder = "例如：A方案";
-    $("lblShares").textContent = "份數（通常填 1）*";
-    $("fShares").value = 1;
+    $("fShares").value = 1; sharesRow.style.display = "none";
     $("lblCost").textContent = "投入本金 *";
     $("rowTargets").style.display = "none";
   } else if (m === "FUND") {
-    $("lblSymbol").textContent = "基金代號／簡稱 *";
+    $("lblSymbol").textContent = "基金名稱／簡稱 *";
     $("fSymbol").placeholder = "例如：安聯收益成長";
-    $("lblShares").textContent = "持有單位數 *";
-    $("lblCost").textContent = "平均申購淨值 *";
+    $("fShares").value = 1; sharesRow.style.display = "none";
+    $("lblCost").textContent = "累計已投入金額 *";
     $("rowTargets").style.display = "none";
   } else {
     $("lblSymbol").textContent = "代號 *";
-    $("fSymbol").placeholder = "AAPL / 0050";
+    $("fSymbol").placeholder = m === "TH" ? "PTT / CPALL" : "AAPL / 0050";
+    sharesRow.style.display = "";
     $("lblShares").textContent = "股數 *";
     $("lblCost").textContent = "平均成本 *";
     $("rowTargets").style.display = "flex";
@@ -683,30 +726,26 @@ async function addPayout(id, sym) {
   catch (e) { $("status").textContent = "記錄失敗：" + e.message; }
 }
 
-// 定期定額：金額＋申購淨值，自動重算平均成本
+// 基金本月投入：只填金額，累計投入自動加總
 async function contribute(id, sym) {
   const a = prompt(`${sym} 本次投入金額：`);
   if (a === null) return;
   const amount = parseFloat(String(a).replace(/,/g, ""));
   if (!(amount > 0)) { $("status").textContent = "金額需大於 0。"; return; }
-  const n = prompt("本次申購淨值（對帳單上的單位淨值）：");
-  if (n === null) return;
-  const nav = parseFloat(String(n).replace(/,/g, ""));
-  if (!(nav > 0)) { $("status").textContent = "淨值需大於 0。"; return; }
-  $("status").textContent = "計算中⋯";
+  $("status").textContent = "記錄中⋯";
   try {
-    await apiPost({ action: "contribute", id, amount, nav });
+    await apiPost({ action: "contribute", id, amount });
     await load();
-    toast(`🎽 本次申購 ${fmt(amount / nav, 2)} 單位，平均成本已重算`);
+    toast(`🎽 本月課表完成 +${fmt(amount, 0)}`);
   } catch (e) { $("status").textContent = "失敗：" + e.message; }
 }
 
-// 手動更新基金淨值
+// 手動更新基金目前市值（看基金 App 對帳單上的總市值）
 async function updateNav(id, sym) {
-  const v = prompt(`${sym} 最新淨值：`);
+  const v = prompt(`${sym} 目前總市值（基金 App 上顯示的參考市值）：`);
   if (v === null) return;
   const price = parseFloat(String(v).replace(/,/g, ""));
-  if (!(price > 0)) { $("status").textContent = "淨值需大於 0。"; return; }
+  if (!(price > 0)) { $("status").textContent = "市值需大於 0。"; return; }
   $("status").textContent = "更新中⋯";
   try { await apiPost({ action: "setPrice", id, price }); await load(); }
   catch (e) { $("status").textContent = "更新失敗：" + e.message; }
