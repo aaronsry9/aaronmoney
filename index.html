@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>投資馬拉松</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0F1216">
+<style>
+:root{
+  --bg:#0F1216; --surface:#171B21; --line:#262C34;
+  --text:#E8E6E1; --muted:#8A919C;
+  --up:#E5484D; --down:#3DA26D; --accent:#D9B36C;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Noto Sans TC','PingFang TC',sans-serif;
+  padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 90px);
+  max-width:640px; margin:0 auto;
+}
+.num{font-family:'SF Mono','IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+header{display:flex;justify-content:space-between;align-items:baseline;padding:20px 0 12px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:10px;letter-spacing:4px;color:var(--accent)}
+h1{font-size:18px;font-weight:700;margin-top:2px}
+.meta{font-size:10px;color:var(--muted);text-align:right;line-height:1.6}
+
+/* 等級卡 */
+.level-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:16px}
+.level-top{display:flex;justify-content:space-between;align-items:center}
+.level-title{font-size:15px;font-weight:700}
+.level-title .lv{color:var(--accent);margin-right:6px}
+.streak{font-size:11px;color:var(--muted)}
+.streak b{color:var(--accent)}
+.xp-bar{height:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:10px 0 5px}
+.xp-fill{height:100%;background:linear-gradient(90deg,#8C7443,var(--accent));transition:width .8s ease}
+.xp-text{font-size:10px;color:var(--muted)}
+
+/* 馬拉松賽道 */
+.race{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:12px}
+.race-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.race-head .t{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent)}
+.race-goal{font-size:10px;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.track{position:relative;height:34px;margin:6px 2px 2px}
+.track-line{position:absolute;top:24px;left:0;right:0;height:4px;background:var(--bg);border:1px solid var(--line);border-radius:2px}
+.track-fill{position:absolute;top:24px;left:0;height:4px;background:linear-gradient(90deg,#8C7443,var(--accent));border-radius:2px;transition:width .8s ease}
+.runner{position:absolute;top:0;font-size:18px;transform:translateX(-50%);transition:left .8s ease}
+.finish{position:absolute;top:2px;right:-2px;font-size:14px}
+.km-row{display:flex;justify-content:space-between;margin-top:8px}
+.km-row .big{font-size:22px;font-weight:700}
+.km-row .big small{font-size:11px;font-weight:400;color:var(--muted)}
+.km-row .right{text-align:right;font-size:10px;color:var(--muted);line-height:1.6}
+.finished-note{margin-top:8px;font-size:12px;color:var(--accent);font-weight:700}
+
+/* 戰報 */
+.report{border-left:3px solid var(--accent);padding:10px 14px;margin-top:12px;font-size:13px;line-height:1.7;background:rgba(217,179,108,.05);border-radius:0 8px 8px 0}
+.report .rt{font-size:10px;letter-spacing:2px;color:var(--accent);display:block;margin-bottom:2px}
+
+/* 徽章 */
+.badges{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px;-webkit-overflow-scrolling:touch}
+.badge{flex:0 0 auto;width:86px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center}
+.badge .bi{font-size:22px;filter:grayscale(1);opacity:.3}
+.badge.on .bi{filter:none;opacity:1}
+.badge .bn{font-size:10px;margin-top:5px;color:var(--muted);line-height:1.4}
+.badge.on .bn{color:var(--text)}
+.badge.on{border-color:rgba(217,179,108,.45)}
+
+/* 總覽 */
+.summary{padding:18px 0 12px}
+.summary .label{font-size:10px;color:var(--muted);letter-spacing:2px}
+.total{font-size:34px;font-weight:600;line-height:1.15;margin:4px 0 12px}
+.subrow{display:flex;gap:24px;flex-wrap:wrap}
+.subrow .v{font-size:15px;margin-top:2px}
+.pnl-pos{color:var(--up)} .pnl-neg{color:var(--down)} .pnl-zero{color:var(--muted)}
+
+.alloc{display:flex;height:8px;border-radius:2px;overflow:hidden;border:1px solid var(--line);margin-bottom:6px}
+.alloc div{height:100%}
+.alloc-legend{display:flex;flex-wrap:wrap;gap:2px 14px;margin-bottom:16px}
+.alloc-legend span{font-size:10px;color:var(--muted)}
+
+.alert{border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px}
+.alert .t{font-weight:700;letter-spacing:1px;margin-bottom:5px;font-size:11px}
+.alert .items{display:flex;flex-direction:column;gap:3px}
+.alert-buy{background:rgba(217,179,108,.08);border:1px solid var(--accent)} .alert-buy .t{color:var(--accent)}
+.alert-sell{background:rgba(229,72,77,.08);border:1px solid var(--up)} .alert-sell .t{color:var(--up)}
+.alert-breach{background:rgba(61,162,109,.08);border:1px solid var(--down)} .alert-breach .t{color:var(--down)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.card.breach{border-color:rgba(61,162,109,.5)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.sym{font-size:16px;font-weight:700}
+.tag{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.6}
+.tag .tb{color:var(--accent)} .tag .ts{color:var(--up)}
+.card-pnl{text-align:right}
+.card-pnl .p{font-size:16px;font-weight:700}
+.card-pnl .pc{font-size:11px}
+.card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.card-grid .k{font-size:9px;color:var(--muted);letter-spacing:1px}
+.card-grid .v{font-size:12px;margin-top:2px}
+.card-actions{display:flex;gap:6px;margin-top:10px}
+.mini{background:none;border:none;color:var(--accent);font-size:12px;padding:4px 8px;cursor:pointer}
+.mini.grey{color:var(--muted)}
+
+.empty{border:1px dashed var(--line);border-radius:10px;padding:44px 20px;text-align:center;color:var(--muted);font-size:13px;margin-top:16px}
+.note{font-size:10px;color:var(--muted);margin-top:14px;line-height:1.7}
+.status{font-size:11px;color:var(--accent);padding:8px 0;min-height:28px}
+
+.toolbar{
+  position:fixed;bottom:0;left:0;right:0;display:flex;gap:10px;
+  padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);
+  background:linear-gradient(transparent,var(--bg) 30%);
+  max-width:640px;margin:0 auto;
+}
+.btn{flex:1;padding:13px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer}
+.btn-primary{background:var(--accent);color:#14110A}
+.btn-ghost{background:var(--surface);color:var(--text);border:1px solid var(--line)}
+.btn:disabled{opacity:.45}
+
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:10}
+.sheet-bg.open{display:block}
+.sheet{
+  position:fixed;bottom:0;left:0;right:0;max-width:640px;margin:0 auto;z-index:11;
+  background:var(--surface);border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:none;
+  padding:20px 18px calc(env(safe-area-inset-bottom) + 20px);
+  transform:translateY(105%);transition:transform .25s ease;max-height:88vh;overflow-y:auto;
+}
+.sheet.open{transform:translateY(0)}
+.sheet h2{font-size:15px;font-weight:700;margin-bottom:14px}
+.frow{display:flex;gap:10px;margin-bottom:12px}
+.frow>label{flex:1;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted)}
+input,select{
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--text);
+  padding:11px 10px;font-size:16px;outline:none;width:100%;font-variant-numeric:tabular-nums;
+}
+input:focus,select:focus{border-color:var(--accent)}
+.sheet .actions{display:flex;gap:10px;margin-top:6px}
+
+/* 成就解鎖 toast */
+.toast{
+  position:fixed;top:calc(env(safe-area-inset-top) + 14px);left:50%;transform:translate(-50%,-150%);
+  background:var(--surface);border:1px solid var(--accent);color:var(--text);
+  border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;z-index:20;
+  transition:transform .35s ease;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.5);
+}
+.toast.show{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.sheet,.toast,.xp-fill,.track-fill,.runner{transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="eyebrow">ASSET MARATHON</div>
+    <h1>投資馬拉松</h1>
+  </div>
+  <div class="meta">紅漲・綠跌<br><span id="updated"></span></div>
+</header>
+
+<!-- 等級 -->
+<div class="level-card">
+  <div class="level-top">
+    <div class="level-title"><span class="lv" id="lvNum">Lv.1</span><span id="lvName">熱身慢跑</span></div>
+    <div class="streak">連續打卡 <b id="streakN">1</b> 天 🔥</div>
+  </div>
+  <div class="xp-bar"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
+  <div class="xp-text" id="xpText">累積投入 0 / 下一級 100,000</div>
+</div>
+
+<!-- 馬拉松賽道 -->
+<div class="race">
+  <div class="race-head">
+    <span class="t">🏁 資產馬拉松</span>
+    <button class="race-goal" id="btnGoal">目標 —</button>
+  </div>
+  <div class="track">
+    <div class="track-line"></div>
+    <div class="track-fill" id="trackFill" style="width:0%"></div>
+    <div class="runner" id="runner" style="left:0%">🏃</div>
+    <div class="finish">🏁</div>
+  </div>
+  <div class="km-row">
+    <div class="big num" id="kmNow">0.0 <small>km / 42.195 km</small></div>
+    <div class="right" id="kmDetail">總市值 — / 目標 —</div>
+  </div>
+  <div class="finished-note" id="finishNote" style="display:none">🎉 完賽！設一個新目標，開始下一場賽事。</div>
+</div>
+
+<!-- 每日戰報 -->
+<div class="report" id="report" style="display:none">
+  <span class="rt">今日戰報</span>
+  <span id="reportText"></span>
+</div>
+
+<!-- 徽章 -->
+<div class="badges" id="badges"></div>
+
+<section class="summary">
+  <div class="label">總市值（TWD）</div>
+  <div class="total num" id="totalMv">—</div>
+  <div class="subrow">
+    <div><div class="label">總投入</div><div class="v num" id="totalCost" style="color:var(--muted)">—</div></div>
+    <div><div class="label">未實現損益</div><div class="v num" id="totalPnl">—</div></div>
+    <div><div class="label">已領回饋</div><div class="v num" id="totalPayout" style="color:var(--accent)">—</div></div>
+    <div><div class="label">USD/TWD</div><div class="v num" id="fxRate" style="color:var(--muted)">—</div></div>
+  </div>
+</section>
+
+<div class="alloc" id="alloc" style="display:none"></div>
+<div class="alloc-legend" id="allocLegend"></div>
+
+<div id="alerts"></div>
+<div class="status" id="status"></div>
+<div id="list"></div>
+<div class="note" id="footNote" style="display:none">
+  等級依累積投入計算，漲跌不影響——努力存的每一塊都算數。報價來自 Google Finance（延遲 15–20 分鐘），重大決策請以券商報價為準。
+</div>
+
+<div class="toolbar">
+  <button class="btn btn-ghost" id="btnRefresh">⟳ 更新報價</button>
+  <button class="btn btn-primary" id="btnAdd">＋ 新增持倉</button>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet">
+  <h2 id="sheetTitle">新增持倉</h2>
+  <div class="frow">
+    <label>市場
+      <select id="fMarket">
+        <option value="US">美股</option>
+        <option value="TW">台股</option>
+        <option value="FUND">基金（定期定額）</option>
+        <option value="INCOME">收益型（固定回饋）</option>
+        <option value="OTHER">其他</option>
+      </select>
+    </label>
+    <label><span id="lblSymbol">代號 *</span><input id="fSymbol" placeholder="AAPL / 0050" autocapitalize="characters"></label>
+  </div>
+  <div class="frow">
+    <label>名稱（選填）<input id="fName"></label>
+    <label>幣別
+      <select id="fCurrency"><option value="USD">USD</option><option value="TWD">TWD</option></select>
+    </label>
+  </div>
+  <div class="frow">
+    <label><span id="lblShares">股數 *</span><input id="fShares" type="number" inputmode="decimal"></label>
+    <label><span id="lblCost">平均成本 *</span><input id="fCost" type="number" inputmode="decimal"></label>
+  </div>
+  <div class="frow" id="rowTargets">
+    <label>加碼價 ≤（選填）<input id="fTargetBuy" type="number" inputmode="decimal"></label>
+    <label>減碼價 ≥（選填）<input id="fTargetSell" type="number" inputmode="decimal"></label>
+  </div>
+  <div class="actions">
+    <button class="btn btn-ghost" id="btnCancel">取消</button>
+    <button class="btn btn-primary" id="btnSave">儲存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ 設定：部署後填入你的 Apps Script 網址與 TOKEN ============
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbw1V369px40mytShin3PjfxAlXNUj1UN7vHPEsKsUtWfYgefpW__fifgJ0WG1MJIXZf/exec",
+  TOKEN: "nid2026" // 需與 Code.gs 裡的 TOKEN 一致，建議改成自己的
+};
+// =====================================================================
+
+const MARKETS = { US: "美股", TW: "台股", FUND: "基金", INCOME: "收益型", OTHER: "其他" };
+const MARATHON_KM = 42.195;
+
+// 等級表：依累積投入（TWD）
+const LEVELS = [
+  { need: 0,         name: "熱身慢跑" },
+  { need: 100000,    name: "晨跑固定班" },
+  { need: 300000,    name: "5K 完賽者" },
+  { need: 600000,    name: "10K 跑者" },
+  { need: 1000000,   name: "半馬完賽者" },
+  { need: 2000000,   name: "全馬完賽者" },
+  { need: 3500000,   name: "波馬資格線" },
+  { need: 5000000,   name: "超馬選手" },
+  { need: 8000000,   name: "百 K 越野" },
+  { need: 12000000,  name: "環台縱走傳說" }
+];
+
+// 徽章定義
+const BADGES = [
+  { id: "start",   icon: "🎽", name: "鳴槍開跑", test: (s) => s.rows.length >= 1 },
+  { id: "dual",    icon: "🌏", name: "雙棲跑者", test: (s) => s.rows.some(r => r.market === "US") && s.rows.some(r => r.market === "TW") },
+  { id: "spread",  icon: "🧩", name: "配速分散", test: (s) => s.rows.length >= 3 },
+  { id: "plan",    icon: "📋", name: "課表紀律", test: (s) => s.rows.some(r => r.targetBuy > 0 || r.targetSell > 0) },
+  { id: "rain",    icon: "🌧️", name: "雨天照跑", test: (s) => s.rows.some(r => r.hasPrice && r.price < r.cost) },
+  { id: "supply",  icon: "🥤", name: "補給到手", test: (s) => s.rows.some(r => r.payout > 0) },
+  { id: "streak7", icon: "🔥", name: "連跑七日", test: (s) => s.streak >= 7 },
+  { id: "club6",   icon: "💯", name: "六位數起跑", test: (s) => s.totalMv >= 100000 },
+  { id: "club7",   icon: "🏅", name: "百萬俱樂部", test: (s) => s.totalMv >= 1000000 }
+];
+
+// 每日戰報（依總報酬率）
+function reportLine(pct, hasData) {
+  if (!hasData) return "還沒開跑。加入第一筆持倉，站上起跑線。";
+  if (pct >= 20)  return "遙遙領先配速列車！但馬拉松後半段才是重點——別因為前面跑太爽就亂加速。";
+  if (pct >= 8)   return "配速漂亮，穩穩領先目標配速。維持節奏，不要看到紅字就想衝刺。";
+  if (pct >= 2)   return "順順地跑，心率區間剛剛好。長期投資最強的招式就是無聊。";
+  if (pct > -2)   return "均速前進中。沒漲沒跌的日子最適合什麼都不做——這也是一種訓練。";
+  if (pct > -8)   return "遇到一段緩上坡，配速掉一點很正常。低頭、擺臂、繼續跑，別在坡上棄賽。";
+  return "逆風大爬坡。記住：完賽者不是最快的人，是沒有停下來的人。你設的加碼價就是補給站。";
+}
+
+let state = { holdings: [], fx: 32.5, updated: null };
+let editingId = null;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n, d = 2) => (n === null || n === undefined || isNaN(n)) ? "—"
+  : Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pnlClass = (v) => v > 0 ? "pnl-pos" : v < 0 ? "pnl-neg" : "pnl-zero";
+const sign = (v) => v > 0 ? "+" : "";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+// ---------- 本機遊戲資料（目標、打卡、已解鎖徽章） ----------
+function gameData() {
+  try { return JSON.parse(localStorage.getItem("marathon") || "{}"); } catch (e) { return {}; }
+}
+function saveGame(d) { localStorage.setItem("marathon", JSON.stringify(d)); }
+
+function checkIn() {
+  const g = gameData();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const t = today.getTime();
+  if (g.lastVisit === t) return g.streak || 1;
+  const oneDay = 86400000;
+  g.streak = (g.lastVisit === t - oneDay) ? (g.streak || 0) + 1 : 1;
+  g.lastVisit = t;
+  saveGame(g);
+  return g.streak;
+}
+
+// ---------- API ----------
+async function apiGet() {
+  const r = await fetch(`${CONFIG.API_URL}?action=data&token=${encodeURIComponent(CONFIG.TOKEN)}`);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+async function apiPost(payload) {
+  const r = await fetch(CONFIG.API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ token: CONFIG.TOKEN, ...payload })
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+
+async function load(showMsg = true) {
+  if (CONFIG.API_URL.startsWith("在這裡")) {
+    $("status").textContent = "尚未設定 API_URL，請先照部署說明完成設定。";
+    renderGame([], 0, 0);
+    return;
+  }
+  if (showMsg) $("status").textContent = "更新報價中⋯";
+  $("btnRefresh").disabled = true;
+  try {
+    state = await apiGet();
+    render();
+    $("status").textContent = "";
+  } catch (e) {
+    $("status").textContent = "載入失敗：" + e.message;
+  }
+  $("btnRefresh").disabled = false;
+}
+
+// ---------- 計算 ----------
+function calc() {
+  const payouts = state.payouts || {};
+  return state.holdings.map(h => {
+    const payout = Number(payouts[String(h.id)] || 0);
+    const isIncome = h.market === "INCOME";
+    const hasPrice = !isIncome && typeof h.price === "number";
+    const costBasis = h.shares * h.cost;
+    const mv = isIncome ? costBasis : (hasPrice ? h.shares * h.price : costBasis);
+    const unreal = hasPrice ? mv - costBasis : 0;
+    const pnl = unreal + payout;
+    const pct = costBasis > 0 ? pnl / costBasis * 100 : 0;
+    const rate = h.currency === "USD" ? state.fx : 1;
+    return { ...h, isIncome, hasPrice, payout, costBasis, mv, pnl, pct,
+      mvTWD: mv * rate, costTWD: costBasis * rate, payoutTWD: payout * rate };
+  }).sort((a, b) => b.mvTWD - a.mvTWD);
+}
+
+// ---------- 遊戲層渲染 ----------
+function renderGame(rows, totalMv, totalCost) {
+  const streak = checkIn();
+  $("streakN").textContent = streak;
+
+  // 等級（依累積投入）
+  let lv = 0;
+  for (let i = 0; i < LEVELS.length; i++) if (totalCost >= LEVELS[i].need) lv = i;
+  const cur = LEVELS[lv], next = LEVELS[lv + 1];
+  $("lvNum").textContent = "Lv." + (lv + 1);
+  $("lvName").textContent = cur.name;
+  if (next) {
+    const p = (totalCost - cur.need) / (next.need - cur.need) * 100;
+    $("xpFill").style.width = Math.min(100, Math.max(2, p)) + "%";
+    $("xpText").textContent = `累積投入 ${fmt(totalCost, 0)} ／ 下一級「${next.name}」 ${fmt(next.need, 0)}`;
+  } else {
+    $("xpFill").style.width = "100%";
+    $("xpText").textContent = `累積投入 ${fmt(totalCost, 0)}——已達最高等級，傳說中的跑者。`;
+  }
+
+  // 馬拉松
+  const g = gameData();
+  const goal = g.goal || 1000000;
+  $("btnGoal").textContent = "目標 " + fmt(goal, 0);
+  const prog = Math.min(1, totalMv / goal);
+  const km = prog * MARATHON_KM;
+  $("trackFill").style.width = (prog * 100) + "%";
+  $("runner").style.left = Math.min(97, Math.max(1, prog * 100)) + "%";
+  $("runner").textContent = prog >= 1 ? "🏆" : "🏃";
+  $("kmNow").innerHTML = `${km.toFixed(1)} <small>km / ${MARATHON_KM} km</small>`;
+  $("kmDetail").innerHTML = `總市值 ${fmt(totalMv, 0)}<br>目標 ${fmt(goal, 0)}`;
+  $("finishNote").style.display = prog >= 1 ? "block" : "none";
+
+  // 戰報
+  const pnl = totalMv - totalCost;
+  const pct = totalCost > 0 ? pnl / totalCost * 100 : 0;
+  $("report").style.display = "block";
+  $("reportText").textContent = reportLine(pct, rows.length > 0);
+
+  // 徽章
+  const snap = { rows, streak, totalMv };
+  const unlocked = new Set(g.badges || []);
+  let newly = null;
+  const html = BADGES.map(b => {
+    const on = b.test(snap);
+    if (on && !unlocked.has(b.id)) { unlocked.add(b.id); if (!newly) newly = b; }
+    const keep = unlocked.has(b.id); // 解鎖過就不收回
+    return `<div class="badge ${keep ? "on" : ""}"><div class="bi">${b.icon}</div><div class="bn">${b.name}</div></div>`;
+  }).join("");
+  $("badges").innerHTML = html;
+  g.badges = [...unlocked];
+  saveGame(g);
+  if (newly) toast(`${newly.icon} 解鎖成就：${newly.name}`);
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+$("btnGoal").onclick = () => {
+  const g = gameData();
+  const v = prompt("設定你的資產目標（TWD）——這就是這場馬拉松的終點線：", g.goal || 1000000);
+  if (v === null) return;
+  const n = parseFloat(String(v).replace(/,/g, ""));
+  if (n > 0) { g.goal = n; saveGame(g); render(); toast("🏁 新賽事開始，目標 " + fmt(n, 0)); }
+};
+
+// ---------- 主渲染 ----------
+function render() {
+  const rows = calc();
+  const totalMv = rows.reduce((s, r) => s + r.mvTWD, 0);
+  const totalCost = rows.reduce((s, r) => s + r.costTWD, 0);
+  const totalPayout = rows.reduce((s, r) => s + r.payoutTWD, 0);
+  const pnl = totalMv - totalCost + totalPayout; // 含已領回饋
+  const pct = totalCost > 0 ? pnl / totalCost * 100 : 0;
+
+  renderGame(rows, totalMv, totalCost);
+
+  $("totalMv").textContent = fmt(totalMv, 0);
+  $("totalCost").textContent = fmt(totalCost, 0);
+  $("totalPayout").textContent = totalPayout > 0 ? "+" + fmt(totalPayout, 0) : "—";
+  const tp = $("totalPnl");
+  tp.textContent = `${sign(pnl)}${fmt(pnl, 0)}（${sign(pct)}${fmt(pct)}%）`;
+  tp.className = "v num " + pnlClass(pnl);
+  $("fxRate").textContent = fmt(state.fx);
+  $("updated").textContent = state.updated ? "報價更新 " + new Date(state.updated).toLocaleString("zh-TW", { hour12: false }) : "";
+
+  const alloc = $("alloc"), legend = $("allocLegend");
+  if (rows.length && totalMv > 0) {
+    alloc.style.display = "flex";
+    alloc.innerHTML = rows.map((r, i) =>
+      `<div style="width:${r.mvTWD / totalMv * 100}%;background:${i % 2 ? "#8C7443" : "var(--accent)"};opacity:${1 - i * 0.09}"></div>`).join("");
+    legend.innerHTML = rows.map(r =>
+      `<span class="num">${esc(r.symbol)} ${(r.mvTWD / totalMv * 100).toFixed(1)}%</span>`).join("");
+  } else { alloc.style.display = "none"; legend.innerHTML = ""; }
+
+  const buy = rows.filter(r => r.hasPrice && r.targetBuy > 0 && r.price <= r.targetBuy);
+  const sell = rows.filter(r => r.hasPrice && r.targetSell > 0 && r.price >= r.targetSell);
+  const breach = rows.filter(r => r.hasPrice && r.price < r.cost);
+  let a = "";
+  if (buy.length) a += `<div class="alert alert-buy"><div class="t">⛽ 抵達補給站（${buy.length} 檔到加碼價）</div><div class="items">${buy.map(r =>
+    `<span class="num"><b>${esc(r.symbol)}</b> 現價 ${fmt(r.price)} ≤ 加碼價 ${fmt(r.targetBuy)}</span>`).join("")}</div></div>`;
+  if (sell.length) a += `<div class="alert alert-sell"><div class="t">▲ ${sell.length} 檔到達減碼價</div><div class="items">${sell.map(r =>
+    `<span class="num"><b>${esc(r.symbol)}</b> 現價 ${fmt(r.price)} ≥ 減碼價 ${fmt(r.targetSell)}</span>`).join("")}</div></div>`;
+  if (breach.length) a += `<div class="alert alert-breach"><div class="t">⛰️ 爬坡路段（${breach.length} 檔跌破成本）</div><div class="items">${breach.map(r =>
+    `<span class="num"><b>${esc(r.symbol)}</b> 成本 ${fmt(r.cost)} → ${fmt(r.price)}（${fmt(r.pct)}%）</span>`).join("")}</div></div>`;
+  $("alerts").innerHTML = a;
+
+  const list = $("list");
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty">還沒站上起跑線。點「新增持倉」加入第一筆，鳴槍開跑 🎽</div>`;
+    $("footNote").style.display = "none";
+    return;
+  }
+  $("footNote").style.display = "block";
+  list.innerHTML = rows.map(renderCard).join("");
+}
+
+function renderCard(r) {
+  const head = `
+      <div class="card-top">
+        <div>
+          <div class="sym num">${esc(r.symbol)}</div>
+          <div class="tag">${MARKETS[r.market] || r.market}${r.name ? "・" + esc(r.name) : ""}・${esc(r.currency)}
+            ${r.targetBuy > 0 ? `<span class="tb">・補給 ≤${fmt(r.targetBuy)}</span>` : ""}
+            ${r.targetSell > 0 ? `<span class="ts">・減碼 ≥${fmt(r.targetSell)}</span>` : ""}
+          </div>
+        </div>
+        <div class="card-pnl ${pnlClass(r.pnl)}">
+          <div class="p num">${sign(r.pnl)}${fmt(r.pnl, 0)}</div>
+          <div class="pc num">${sign(r.pct)}${fmt(r.pct)}%</div>
+        </div>
+      </div>`;
+
+  // 收益型：本金＋回饋追蹤＋回本進度
+  if (r.isIncome) {
+    const recovered = r.costBasis > 0 ? r.payout / r.costBasis * 100 : 0;
+    return `
+    <div class="card">
+      ${head}
+      <div class="card-grid">
+        <div><div class="k">投入本金</div><div class="v num">${fmt(r.costBasis, 0)}</div></div>
+        <div><div class="k">累計回饋</div><div class="v num" style="color:var(--accent)">${fmt(r.payout, 0)}</div></div>
+        <div><div class="k">回本進度</div><div class="v num" style="color:${recovered >= 100 ? "var(--up)" : "var(--accent)"}">${recovered.toFixed(1)}%</div></div>
+        <div><div class="k">狀態</div><div class="v">${recovered >= 100 ? "已回本 ✓" : "風險中"}</div></div>
+      </div>
+      <div class="card-actions">
+        <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋記回饋</button>
+        <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
+        <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
+      </div>
+    </div>`;
+  }
+
+  // 基金：手動淨值＋定期定額
+  if (r.market === "FUND") {
+    return `
+    <div class="card ${r.hasPrice && r.price < r.cost ? "breach" : ""}">
+      ${head}
+      <div class="card-grid">
+        <div><div class="k">單位數</div><div class="v num">${fmt(r.shares, 2)}</div></div>
+        <div><div class="k">平均淨值</div><div class="v num">${fmt(r.cost)}</div></div>
+        <div><div class="k">最新淨值</div><div class="v num" style="${r.hasPrice ? "" : "color:var(--muted)"}">${r.hasPrice ? fmt(r.price) : "未設定"}</div></div>
+        <div><div class="k">市值</div><div class="v num">${fmt(r.mv, 0)}</div></div>
+      </div>
+      ${r.payout > 0 ? `<div class="tag" style="margin-top:8px">累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></div>` : ""}
+      <div class="card-actions">
+        <button class="mini" onclick="contribute('${r.id}','${esc(r.symbol)}')">＋定期定額</button>
+        <button class="mini" onclick="updateNav('${r.id}','${esc(r.symbol)}')">更新淨值</button>
+        <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋配息</button>
+        <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
+        <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
+      </div>
+    </div>`;
+  }
+
+  // 一般股票／ETF
+  return `
+    <div class="card ${r.hasPrice && r.price < r.cost ? "breach" : ""}">
+      ${head}
+      <div class="card-grid">
+        <div><div class="k">股數</div><div class="v num">${fmt(r.shares, r.shares % 1 === 0 ? 0 : 2)}</div></div>
+        <div><div class="k">成本價</div><div class="v num">${fmt(r.cost)}</div></div>
+        <div><div class="k">現價</div><div class="v num" style="${r.hasPrice ? "" : "color:var(--muted)"}">${r.hasPrice ? fmt(r.price) : "—"}</div></div>
+        <div><div class="k">市值</div><div class="v num">${fmt(r.mv, 0)}</div></div>
+      </div>
+      ${r.payout > 0 ? `<div class="tag" style="margin-top:8px">累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></div>` : ""}
+      <div class="card-actions">
+        <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋配息</button>
+        <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
+        <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
+      </div>
+    </div>`;
+}
+
+// ---------- 表單 ----------
+function openSheet(title) { $("sheetTitle").textContent = title; $("sheet").classList.add("open"); $("sheetBg").classList.add("open"); }
+function closeSheet() { $("sheet").classList.remove("open"); $("sheetBg").classList.remove("open"); editingId = null; }
+
+$("btnAdd").onclick = () => {
+  editingId = null;
+  ["fSymbol","fName","fShares","fCost","fTargetBuy","fTargetSell"].forEach(id => $(id).value = "");
+  $("fMarket").value = "US"; $("fCurrency").value = "USD";
+  $("fMarket").onchange({ target: { value: "US" } });
+  openSheet("新增持倉");
+};
+function openEdit(id) {
+  const h = state.holdings.find(x => String(x.id) === String(id));
+  if (!h) return;
+  editingId = h.id;
+  $("fMarket").value = h.market;
+  $("fMarket").onchange({ target: { value: h.market } });
+  $("fSymbol").value = h.symbol; $("fName").value = h.name || "";
+  $("fCurrency").value = h.currency; $("fShares").value = h.shares; $("fCost").value = h.cost;
+  $("fTargetBuy").value = h.targetBuy ?? ""; $("fTargetSell").value = h.targetSell ?? "";
+  openSheet("編輯 " + h.symbol);
+}
+$("fMarket").onchange = (e) => {
+  const m = e.target.value;
+  if (m === "US") $("fCurrency").value = "USD";
+  if (m === "TW" || m === "FUND" || m === "INCOME") $("fCurrency").value = "TWD";
+  if (m === "INCOME") {
+    $("lblSymbol").textContent = "名稱代號 *（自訂）";
+    $("fSymbol").placeholder = "例如：A方案";
+    $("lblShares").textContent = "份數（通常填 1）*";
+    $("fShares").value = 1;
+    $("lblCost").textContent = "投入本金 *";
+    $("rowTargets").style.display = "none";
+  } else if (m === "FUND") {
+    $("lblSymbol").textContent = "基金代號／簡稱 *";
+    $("fSymbol").placeholder = "例如：安聯收益成長";
+    $("lblShares").textContent = "持有單位數 *";
+    $("lblCost").textContent = "平均申購淨值 *";
+    $("rowTargets").style.display = "none";
+  } else {
+    $("lblSymbol").textContent = "代號 *";
+    $("fSymbol").placeholder = "AAPL / 0050";
+    $("lblShares").textContent = "股數 *";
+    $("lblCost").textContent = "平均成本 *";
+    $("rowTargets").style.display = "flex";
+  }
+};
+$("btnCancel").onclick = closeSheet;
+$("sheetBg").onclick = closeSheet;
+
+$("btnSave").onclick = async () => {
+  const h = {
+    market: $("fMarket").value,
+    symbol: $("fSymbol").value.trim().toUpperCase(),
+    name: $("fName").value.trim(),
+    currency: $("fCurrency").value,
+    shares: parseFloat($("fShares").value),
+    cost: parseFloat($("fCost").value),
+    targetBuy: $("fTargetBuy").value === "" ? null : parseFloat($("fTargetBuy").value),
+    targetSell: $("fTargetSell").value === "" ? null : parseFloat($("fTargetSell").value)
+  };
+  if (!h.symbol || !(h.shares > 0) || !(h.cost > 0)) { $("status").textContent = "代號、股數、成本價為必填。"; return; }
+  $("btnSave").disabled = true;
+  $("status").textContent = "儲存中⋯";
+  try {
+    await apiPost(editingId ? { action: "update", id: editingId, holding: h } : { action: "add", holding: h });
+    closeSheet();
+    await load();
+  } catch (e) { $("status").textContent = "儲存失敗：" + e.message; }
+  $("btnSave").disabled = false;
+};
+
+async function del(id, sym) {
+  if (!confirm(`刪除 ${sym}？`)) return;
+  $("status").textContent = "刪除中⋯";
+  try { await apiPost({ action: "delete", id }); await load(); }
+  catch (e) { $("status").textContent = "刪除失敗：" + e.message; }
+}
+
+// 記一筆回饋／配息
+async function addPayout(id, sym) {
+  const v = prompt(`${sym} 本次回饋／配息金額（原幣別）：`);
+  if (v === null) return;
+  const amount = parseFloat(String(v).replace(/,/g, ""));
+  if (!(amount > 0)) { $("status").textContent = "金額需大於 0。"; return; }
+  $("status").textContent = "記錄中⋯";
+  try { await apiPost({ action: "payout", id, amount }); await load(); toast("🥤 補給到手 +" + fmt(amount, 0)); }
+  catch (e) { $("status").textContent = "記錄失敗：" + e.message; }
+}
+
+// 定期定額：金額＋申購淨值，自動重算平均成本
+async function contribute(id, sym) {
+  const a = prompt(`${sym} 本次投入金額：`);
+  if (a === null) return;
+  const amount = parseFloat(String(a).replace(/,/g, ""));
+  if (!(amount > 0)) { $("status").textContent = "金額需大於 0。"; return; }
+  const n = prompt("本次申購淨值（對帳單上的單位淨值）：");
+  if (n === null) return;
+  const nav = parseFloat(String(n).replace(/,/g, ""));
+  if (!(nav > 0)) { $("status").textContent = "淨值需大於 0。"; return; }
+  $("status").textContent = "計算中⋯";
+  try {
+    await apiPost({ action: "contribute", id, amount, nav });
+    await load();
+    toast(`🎽 本次申購 ${fmt(amount / nav, 2)} 單位，平均成本已重算`);
+  } catch (e) { $("status").textContent = "失敗：" + e.message; }
+}
+
+// 手動更新基金淨值
+async function updateNav(id, sym) {
+  const v = prompt(`${sym} 最新淨值：`);
+  if (v === null) return;
+  const price = parseFloat(String(v).replace(/,/g, ""));
+  if (!(price > 0)) { $("status").textContent = "淨值需大於 0。"; return; }
+  $("status").textContent = "更新中⋯";
+  try { await apiPost({ action: "setPrice", id, price }); await load(); }
+  catch (e) { $("status").textContent = "更新失敗：" + e.message; }
+}
+
+$("btnRefresh").onclick = () => load();
+load();
+</script>
+</body>
+</html>
