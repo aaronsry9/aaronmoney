@@ -111,6 +111,11 @@ h1{font-size:18px;font-weight:700;margin-top:2px}
 .status{font-size:11px;color:var(--accent);padding:8px 0;min-height:28px}
 #todayList>div:last-child{border-bottom:none!important}
 
+/* 分頁 */
+.tabs{display:flex;gap:6px;margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tab{flex:1;text-align:center;padding:10px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none}
+.tab.active{background:var(--accent);color:#14110A}
+
 .toolbar{
   position:fixed;bottom:0;left:0;right:0;display:flex;gap:10px;
   padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);
@@ -161,6 +166,13 @@ input:focus,select:focus{border-color:var(--accent)}
   </div>
   <div class="meta">紅漲・綠跌<br><span id="updated"></span></div>
 </header>
+
+<div class="tabs">
+  <button class="tab active" id="tabOverview" onclick="switchTab('overview')">📊 總覽</button>
+  <button class="tab" id="tabHoldings" onclick="switchTab('holdings')">📋 持倉紀錄</button>
+</div>
+
+<div id="pageOverview">
 
 <!-- 等級 -->
 <div class="level-card">
@@ -222,11 +234,16 @@ input:focus,select:focus{border-color:var(--accent)}
   <div id="todayList" style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin-bottom:16px"></div>
 </div>
 
+</div><!-- /pageOverview -->
+
 <div class="status" id="status"></div>
+
+<div id="pageHoldings" style="display:none">
 <div id="list"></div>
 <div class="note" id="footNote" style="display:none">
   等級依累積投入計算，漲跌不影響——努力存的每一塊都算數。報價來自 Google Finance（延遲 15–20 分鐘），重大決策請以券商報價為準。
 </div>
+</div><!-- /pageHoldings -->
 
 <div class="toolbar">
   <button class="btn btn-ghost" id="btnRefresh">⟳ 更新報價</button>
@@ -460,6 +477,16 @@ function renderGame(rows, totalMv, totalCost) {
   if (newly) toast(`${newly.icon} 解鎖成就：${newly.name}`);
 }
 
+// ---------- 分頁 ----------
+function switchTab(name) {
+  const isOverview = name === "overview";
+  $("pageOverview").style.display = isOverview ? "block" : "none";
+  $("pageHoldings").style.display = isOverview ? "none" : "block";
+  $("tabOverview").classList.toggle("active", isOverview);
+  $("tabHoldings").classList.toggle("active", !isOverview);
+  window.scrollTo(0, 0);
+}
+
 let toastTimer = null;
 function toast(msg) {
   const t = $("toast");
@@ -518,8 +545,15 @@ function render() {
     `<span class="num"><b>${esc(r.symbol)}</b> 成本 ${fmt(r.cost)} → ${fmt(r.price)}（${fmt(r.pct)}%）</span>`).join("")}</div></div>`;
   $("alerts").innerHTML = a;
 
-  // 今日行情：有即時報價的標的（股票／ETF）
-  const live = rows.filter(r => r.hasPrice && !r.isFund);
+  // 今日行情：有即時報價的標的，同一檔只列一次
+  const seen = new Set();
+  const live = rows.filter(r => {
+    if (!r.hasPrice || r.isFund) return false;
+    const key = r.market + ":" + r.symbol;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   if (live.length) {
     $("todaySection").style.display = "block";
     $("todayList").innerHTML = live.map(r => {
