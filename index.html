@@ -109,7 +109,7 @@ h1{font-size:18px;font-weight:700;margin-top:2px}
 .empty{border:1px dashed var(--line);border-radius:10px;padding:44px 20px;text-align:center;color:var(--muted);font-size:13px;margin-top:16px}
 .note{font-size:10px;color:var(--muted);margin-top:14px;line-height:1.7}
 .status{font-size:11px;color:var(--accent);padding:8px 0;min-height:28px}
-#todayList>div:last-child{border-bottom:none!important}
+#todayList>div:last-child,#fundList>div:last-child{border-bottom:none!important}
 
 /* 分頁 */
 .tabs{display:flex;gap:6px;margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
@@ -232,6 +232,12 @@ input:focus,select:focus{border-color:var(--accent)}
 <div id="todaySection" style="display:none">
   <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent);margin:4px 0 8px">📡 今日行情</div>
   <div id="todayList" style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin-bottom:16px"></div>
+</div>
+
+<!-- 基金現況 -->
+<div id="fundSection" style="display:none">
+  <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:var(--accent);margin:4px 0 8px">🌱 基金現況</div>
+  <div id="fundList" style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin-bottom:16px"></div>
 </div>
 
 </div><!-- /pageOverview -->
@@ -576,6 +582,27 @@ function render() {
     $("todaySection").style.display = "none";
   }
 
+  // 基金現況：手動市值 vs 累計投入
+  const funds = rows.filter(r => r.isFund);
+  if (funds.length) {
+    $("fundSection").style.display = "block";
+    $("fundList").innerHTML = funds.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <span style="font-weight:700;font-size:13px">${esc(r.symbol)}</span>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px" class="num">投入 ${fmt(r.costBasis, 0)}${r.hasPrice ? "　市值 " + fmt(r.mv, 0) : ""}</div>
+        </div>
+        <div style="text-align:right">
+          ${r.hasPrice
+            ? `<span class="num" style="font-size:13px;font-weight:700;color:${pnlColorCss(r.pnl)}">${sign(r.pnl)}${fmt(r.pnl, 0)}</span>
+               <div class="num" style="font-size:11px;color:${pnlColorCss(r.pnl)}">${sign(r.pct)}${fmt(r.pct)}%</div>`
+            : `<span style="font-size:11px;color:var(--muted)">尚未填市值</span>`}
+        </div>
+      </div>`).join("");
+  } else {
+    $("fundSection").style.display = "none";
+  }
+
   const list = $("list");
   if (!rows.length) {
     list.innerHTML = `<div class="empty">還沒站上起跑線。點「新增持倉」加入第一筆，鳴槍開跑 🎽</div>`;
@@ -659,6 +686,7 @@ function renderCard(r) {
       </div>
       ${chip || r.payout > 0 ? `<div class="tag" style="margin-top:8px;display:flex;gap:14px">${chip}${r.payout > 0 ? `<span>累計配息 <span style="color:var(--accent)" class="num">+${fmt(r.payout, 0)}</span></span>` : ""}</div>` : ""}
       <div class="card-actions">
+        ${!r.hasPrice ? `<button class="mini" onclick="updateNav('${r.id}','${esc(r.symbol)}')">填現價</button>` : ""}
         <button class="mini" onclick="addPayout('${r.id}','${esc(r.symbol)}')">＋配息</button>
         <button class="mini" onclick="openEdit('${r.id}')">編輯</button>
         <button class="mini grey" onclick="del('${r.id}','${esc(r.symbol)}')">刪除</button>
@@ -774,9 +802,9 @@ async function contribute(id, sym) {
   } catch (e) { $("status").textContent = "失敗：" + e.message; }
 }
 
-// 手動更新基金目前市值（看基金 App 對帳單上的總市值）
+// 手動更新價格（基金填總市值；股票填每股現價）
 async function updateNav(id, sym) {
-  const v = prompt(`${sym} 目前總市值（基金 App 上顯示的參考市值）：`);
+  const v = prompt(`${sym} 最新價格（基金填 App 上的總市值；股票填每股現價）：`);
   if (v === null) return;
   const price = parseFloat(String(v).replace(/,/g, ""));
   if (!(price > 0)) { $("status").textContent = "市值需大於 0。"; return; }
